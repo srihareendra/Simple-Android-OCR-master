@@ -1,18 +1,28 @@
 package com.datumdroid.android.ocr.simple;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.zip.GZIPInputStream;
 
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener;
+import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.res.AssetManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.net.Uri;
@@ -26,17 +36,18 @@ import android.widget.EditText;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
 
-public class SimpleAndroidOCRActivity extends Activity {
+public class SimpleAndroidOCRActivity extends Activity   {
 	public static final String PACKAGE_NAME = "com.datumdroid.android.ocr.simple";
 	public static final String DATA_PATH = Environment
 			.getExternalStorageDirectory().toString() + "/SimpleAndroidOCR/";
-	
+	private CameraBridgeViewBase mOpenCvCameraView;
 	// You should have the trained data file in assets folder
 	// You can get them at:
 	// http://code.google.com/p/tesseract-ocr/downloads/list
 	public static final String lang = "eng";
 
 	private static final String TAG = "SimpleAndroidOCR.java";
+	 private static final String    TAG_1  = "SimpleAndroidOCR::Activity";
 
 	protected Button _button;
 	// protected ImageView _image;
@@ -45,9 +56,35 @@ public class SimpleAndroidOCRActivity extends Activity {
 	protected boolean _taken;
 
 	protected static final String PHOTO_TAKEN = "photo_taken";
+ 
+	
+	/*private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+		@Override
+		public void onManagerConnected(int status) {
+		    switch (status) {
+		        case LoaderCallbackInterface.SUCCESS:
+		        {
+		            Log.i(TAG_1, "OpenCV hah hah loaded successfully");
+		           Mat m=new Mat();
+		        } break;
+		        default:
+		        {
+	           super.onManagerConnected(status);
+	} break;
+	}
+	}
+		};
 
 	@Override
+	public void onResume()
+	{
+	    super.onResume();
+	    OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_2_4_9, this, mLoaderCallback);
+	}*/
+	@Override
 	public void onCreate(Bundle savedInstanceState) {
+		
+		
 
 		String[] paths = new String[] { DATA_PATH, DATA_PATH + "tessdata/" };
 
@@ -150,15 +187,53 @@ public class SimpleAndroidOCRActivity extends Activity {
 			onPhotoTaken();
 		}
 	}
+	public static Bitmap grayScaleImage(Bitmap src) {
+		// constant factors
+		final double GS_RED = 0.299;
+		final double GS_GREEN = 0.587;
+		final double GS_BLUE = 0.114;
 
+		// create output bitmap
+		Bitmap bmOut = Bitmap.createBitmap(src.getWidth(), src.getHeight(), src.getConfig());
+		// pixel information
+		int A, R, G, B;
+		int pixel;
+
+		// get image size
+		int width = src.getWidth();
+		int height = src.getHeight();
+
+		// scan through every single pixel
+		for(int x = 0; x < width; ++x) {
+			for(int y = 0; y < height; ++y) {
+				// get one pixel color
+				pixel = src.getPixel(x, y);
+				// retrieve color of all channels
+				A = Color.alpha(pixel);
+				R = Color.red(pixel);
+				G = Color.green(pixel);
+				B = Color.blue(pixel);
+				// take conversion up to one single value
+				R = G = B = (int)(GS_RED * R + GS_GREEN * G + GS_BLUE * B);
+				// set new pixel color to output bitmap
+				bmOut.setPixel(x, y, Color.argb(A, R, G, B));
+			}
+		}
+
+		// return final image
+		return bmOut;
+	}
+
+	
 	protected void onPhotoTaken() {
 		_taken = true;
 
 		BitmapFactory.Options options = new BitmapFactory.Options();
-		options.inSampleSize = 4;
-
+		options.inSampleSize = 6;
+			
 		Bitmap bitmap = BitmapFactory.decodeFile(_path, options);
-
+		 
+             
 		try {
 			ExifInterface exif = new ExifInterface(_path);
 			int exifOrientation = exif.getAttributeInt(
@@ -195,9 +270,11 @@ public class SimpleAndroidOCRActivity extends Activity {
 
 				// Rotating Bitmap
 				bitmap = Bitmap.createBitmap(bitmap, 0, 0, w, h, mtx, false);
+				
 			}
 
 			// Convert to ARGB_8888, required by tess
+			
 			bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
 
 		} catch (IOException e) {
@@ -211,6 +288,16 @@ public class SimpleAndroidOCRActivity extends Activity {
 		TessBaseAPI baseApi = new TessBaseAPI();
 		baseApi.setDebug(true);
 		baseApi.init(DATA_PATH, lang);
+		/* Mat tmp = new Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+        Utils.bitmapToMat(bitmap, tmp);
+         Mat gray = new Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+		 Mat mIntermediateMat = new Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+		Mat mRgba = new Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+         Imgproc.cvtColor(tmp, gray, Imgproc.COLOR_RGB2GRAY);
+		Imgproc.Canny(gray, mIntermediateMat, 35, 75);
+		Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4)
+         Utils.matToBitmap(mRgba, bitmap);
+		bitmap=grayScaleImage(bitmap)*/
 		baseApi.setImage(bitmap);
 		
 		String recognizedText = baseApi.getUTF8Text();
@@ -223,11 +310,9 @@ public class SimpleAndroidOCRActivity extends Activity {
 
 		Log.v(TAG, "OCRED TEXT: " + recognizedText);
 
-		if ( lang.equalsIgnoreCase("eng") ) {
-			recognizedText = recognizedText.replaceAll("[^a-zA-Z0-9]+", " ");
-		}
 		
-		recognizedText = recognizedText.trim();
+		
+		
 
 		if ( recognizedText.length() != 0 ) {
 			_field.setText(_field.getText().toString().length() == 0 ? recognizedText : _field.getText() + " " + recognizedText);
